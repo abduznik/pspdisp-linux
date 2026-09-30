@@ -67,7 +67,8 @@ if [ -z "$DEST" ]; then
       fi
       if [ -z "$DEST" ]; then
         DEST=$(mktemp -d)
-        if mount "$PSP_DEV" "$DEST" 2>/dev/null || sudo mount "$PSP_DEV" "$DEST" 2>/dev/null; then
+        _mo="uid=$(id -u),gid=$(id -g)"   # FAT has no owners: without this the mount is root-only
+        if mount -o "$_mo" "$PSP_DEV" "$DEST" 2>/dev/null || sudo mount -o "$_mo" "$PSP_DEV" "$DEST" 2>/dev/null; then
           :
         else
           rmdir "$DEST" 2>/dev/null || true
