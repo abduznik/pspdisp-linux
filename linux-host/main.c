@@ -243,7 +243,10 @@ int main(int argc, char **argv)
       /* Stop our own running host(s) cleanly: SIGTERM, never kill -9 (that
          wedges the USB device). Restrict to this user's processes so we don't
          touch a root-owned instance and leak permission errors. */
-      int r = system("pkill -TERM -u \"$(id -u)\" -x pspdisp 2>/dev/null");
+      char cmd[160];   /* exclude ourselves: this process is also named pspdisp */
+      snprintf(cmd, sizeof cmd, "p=$(pgrep -u \"$(id -u)\" -x pspdisp | grep -vx %d) && kill -TERM $p 2>/dev/null",
+               (int)getpid());
+      int r = system(cmd);
       printf(r == 0 ? "stopped pspdisp.\n" : "no running pspdisp found.\n");
       return 0;
     }
