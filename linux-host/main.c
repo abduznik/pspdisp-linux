@@ -192,7 +192,8 @@ static void usage(const char *p)
    "\n"
    "Extras:\n"
    "  -i                expose PSP buttons as a uinput Xbox 360 gamepad\n"
-   "  --profile NAME    gamepad layout: default, or lol (hold Select: L/R -> LT/RT)\n"
+   "  --input-config F  gamepad mapping file (default: ~/.config/pspdisp/input.conf)\n"
+   "                    see input.conf.example; chords like select+l = lt are supported\n"
    "                    send SIGUSR1 to toggle gamepad output on/off at runtime\n"
    "  -a                stream PC audio to the PSP (experimental)\n"
    "  -v                verbose (show fps / button data)\n"
@@ -247,10 +248,7 @@ int main(int argc, char **argv)
       return 0;
     }
     if (!strcmp(argv[a], "--no-display")) { g_opt.no_display = true; continue; }
-    if (!strcmp(argv[a], "--profile") && a + 1 < argc) {
-      g_opt.profile = !strcmp(argv[++a], "lol") ? PROFILE_LOL : PROFILE_DEFAULT;
-      continue;
-    }
+    if (!strcmp(argv[a], "--input-config") && a + 1 < argc) { g_opt.input_conf = argv[++a]; continue; }
     argv[w++] = argv[a];          /* keep everything else for getopt */
   }
   argc = w;
@@ -364,7 +362,7 @@ int main(int argc, char **argv)
   }
 
   if (!cap->init()) { fprintf(stderr, "capture init failed\n"); display_auto_destroy(); return 1; }
-  if (g_opt.input && !input_init()) g_opt.input = false;
+  if (g_opt.input && !input_init(g_opt.input_conf)) g_opt.input = false;
   if (g_opt.audio && !audio_init()) g_opt.audio = false;
 
   printf("PSPdisp Linux host: capture=%s transport=%s rot=%d q=%d %dfps%s%s\n",

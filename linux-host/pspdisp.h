@@ -10,10 +10,8 @@
 typedef enum { TRANSPORT_USB, TRANSPORT_TCP } transport_kind;
 typedef enum { CAPTURE_WLR, CAPTURE_X11, CAPTURE_PORTAL } capture_kind;
 
-typedef enum { PROFILE_DEFAULT, PROFILE_LOL } input_profile;
-
 typedef struct {
-  input_profile  profile;    /* gamepad button layout                       */
+  const char *input_conf;    /* gamepad mapping file (NULL = default path)  */
   transport_kind transport;
   capture_kind   capture;
   int   x, y, w, h;          /* X11 region (w/h also = evdi virtual mode)  */
@@ -76,7 +74,7 @@ unsigned char *frame_encode(capture_backend *cap, unsigned long *size, uint32_t 
 uint64_t frame_hash(capture_backend *cap);
 
 /* input injection (input.c) */
-bool input_init(void);
+bool input_init(const char *conf_path);
 void input_update(uint32_t buttons, uint8_t analogX, uint8_t analogY);
 void input_term(void);
 extern volatile int g_input_enabled;   /* SIGUSR1 toggles gamepad output */
