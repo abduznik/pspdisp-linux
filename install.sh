@@ -86,11 +86,11 @@ detect_and_install_deps() {
   # portal deps (libpipewire + glib/gio) enable the KDE/GNOME Wayland backend;
   # optional, the build auto-detects them.
   if command -v apt-get >/dev/null 2>&1; then
-    PKGS="build-essential pkg-config libusb-1.0-0-dev libjpeg-dev libx11-dev libxext-dev libwayland-dev wayland-protocols libpulse-dev libpipewire-0.3-dev libglib2.0-dev"
+    PKGS="build-essential pkg-config libusb-1.0-0-dev libjpeg-dev libx11-dev libxext-dev libwayland-dev wayland-protocols libpulse-dev libpipewire-0.3-dev libglib2.0-dev libgbm-dev libdrm-dev libegl-dev libgles-dev"
     PSPDEV_PKGS="curl tar"
     run_root "apt-get update && apt-get install -y $PKGS $PSPDEV_PKGS"
   elif command -v dnf >/dev/null 2>&1; then
-    PKGS="gcc make pkgconf-pkg-config libusbx-devel libjpeg-turbo-devel libX11-devel libXext-devel wayland-devel wayland-protocols-devel pulseaudio-libs-devel pipewire-devel glib2-devel"
+    PKGS="gcc make pkgconf-pkg-config libusbx-devel libjpeg-turbo-devel libX11-devel libXext-devel wayland-devel wayland-protocols-devel pulseaudio-libs-devel pipewire-devel glib2-devel mesa-libgbm-devel libdrm-devel mesa-libEGL-devel mesa-libGLES-devel"
     run_root "dnf install -y $PKGS curl tar"
   elif command -v pacman >/dev/null 2>&1; then
     PKGS="base-devel pkgconf libusb libjpeg-turbo libx11 libxext wayland wayland-protocols libpulse libpipewire glib2"
