@@ -45,6 +45,8 @@
 #define COM_FLAGS_IMAGE_CLEAR_SCREEN        0x00100000
 
 #define COM_FLAGS_FORCE_UPDATE              0x01000000
+#define COM_FLAGS_IMAGE_SCALE_SHIFT         25
+#define COM_FLAGS_IMAGE_SCALE_MASK          0x0E000000   // wire image size preset 0..3 (see compress.c)
 
 #define COM_MAX_PC_CONTROLS 20
 #define COM_MAX_PC_DEVICES 10

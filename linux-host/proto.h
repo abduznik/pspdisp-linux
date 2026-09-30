@@ -24,6 +24,8 @@
 #define COM_FLAGS_IMAGE_CLEAR_SCREEN     0x00100000u
 #define COM_FLAGS_AUDIO_ADPCM            0x00400000u   /* settingsSize = ADPCM bytes after the image */
 #define COM_FLAGS_FORCE_UPDATE           0x01000000u
+#define COM_FLAGS_IMAGE_SCALE_SHIFT      25
+#define COM_FLAGS_IMAGE_SCALE_MASK       0x0E000000u   /* wire image size preset 0..3 (see frame.c) */
 
 #define PSP_W 480
 #define PSP_H 272

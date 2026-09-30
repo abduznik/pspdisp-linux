@@ -29,6 +29,8 @@
 
 unsigned char* l_lastDrawnFrame; // Stores a pointer to the last drawn frame contents
 unsigned int l_lastRotation; // Last drawn frames orientation
+unsigned int l_lastSrcWidth = 480; // Last drawn frames image size
+unsigned int l_lastSrcHeight = 272;
 
 bool l_forceFrameDrawing = false;
 
@@ -360,8 +362,68 @@ void graphicRedrawLastFrame()
   if (l_lastDrawnFrame == NULL)
     l_lastDrawnFrame = g_pixelBuffer;
 
-  graphicDrawFrame((unsigned int*)l_lastDrawnFrame, l_lastRotation, true);
+  graphicDrawFrame((unsigned int*)l_lastDrawnFrame, l_lastRotation, true, l_lastSrcWidth, l_lastSrcHeight);
 }
+
+
+
+
+/*
+  graphicSlicedBlitScaled
+  ---------------------------------------------------
+  Stretch a srcWidth x srcHeight image over screenWidth x screenHeight
+  (centre-aligned texels, bilinear filtered), in 32 pixel wide strips.
+  ---------------------------------------------------
+*/
+void graphicSlicedBlitScaled(float startX, float startY, float screenWidth, float screenHeight, float srcWidth, float srcHeight)
+{
+  float step = (srcWidth - 1.0f) / screenWidth;   // texels per screen pixel
+  float increment = 32.0f;
+
+  sceGuTexScale(1.0f / 512.0f, 1.0f / 512.0f);
+
+  for (float xPos = 0.0f; xPos < screenWidth; xPos += increment)
+  {
+    float xEnd = xPos + increment;
+    if (xEnd > screenWidth)
+      xEnd = screenWidth;
+
+    texturedVertex* vertices = (texturedVertex*)sceGuGetMemory(4 * sizeof(texturedVertex));
+
+    vertices[0].color = 0xFFFFFFFF;
+    vertices[0].u = 0.5f + xPos * step;
+    vertices[0].v = 0.5f;
+    vertices[0].x = startX + xPos;
+    vertices[0].y = startY;
+    vertices[0].z = 0;
+
+    vertices[1].color = 0xFFFFFFFF;
+    vertices[1].u = 0.5f + xEnd * step;
+    vertices[1].v = 0.5f;
+    vertices[1].x = startX + xEnd;
+    vertices[1].y = startY;
+    vertices[1].z = 0;
+
+    vertices[2].color = 0xFFFFFFFF;
+    vertices[2].u = 0.5f + xEnd * step;
+    vertices[2].v = srcHeight - 0.5f;
+    vertices[2].x = startX + xEnd;
+    vertices[2].y = startY + screenHeight;
+    vertices[2].z = 0;
+
+    vertices[3].color = 0xFFFFFFFF;
+    vertices[3].u = 0.5f + xPos * step;
+    vertices[3].v = srcHeight - 0.5f;
+    vertices[3].x = startX + xPos;
+    vertices[3].y = startY + screenHeight;
+    vertices[3].z = 0;
+
+    sceGumDrawArray(GU_TRIANGLE_FAN, GU_TEXTURE_32BITF | GU_COLOR_8888 | GU_VERTEX_32BITF | GU_TRANSFORM_3D, 4, 0, vertices);
+  }
+
+  sceGuTexScale(1.0f, 1.0f);
+}
+
 
 
 
@@ -372,10 +434,12 @@ void graphicRedrawLastFrame()
   Copy the decoded image into the framebuffer.
   ---------------------------------------------------
 */
-void graphicDrawFrame(unsigned int* textureData, unsigned int rotation, bool forceDrawing)
+void graphicDrawFrame(unsigned int* textureData, unsigned int rotation, bool forceDrawing, unsigned int srcWidth, unsigned int srcHeight)
 {
   l_lastDrawnFrame = (unsigned char*)textureData;
   l_lastRotation = rotation;
+  l_lastSrcWidth = srcWidth;
+  l_lastSrcHeight = srcHeight;
 
   // Don't overwrite the menu
   if (g_menuActive && !forceDrawing)
@@ -421,9 +485,20 @@ void graphicDrawFrame(unsigned int* textureData, unsigned int rotation, bool for
   sceGuTexFilter(GU_NEAREST,GU_NEAREST);
   sceGuTexOffset(0.0f, 0.0f);
 
-  sceGuTexImage(0, 512, 512, imageWidth, (void*)textureData);
+  if (((float)srcWidth == imageWidth) && ((float)srcHeight == imageHeight))
+  {
+    sceGuTexImage(0, 512, 512, imageWidth, (void*)textureData);
 
-  graphicSlicedBlit(-0.5f * imageWidth, -0.5 * imageHeight, imageWidth, imageHeight, 512.0f, 512.0f);
+    graphicSlicedBlit(-0.5f * imageWidth, -0.5 * imageHeight, imageWidth, imageHeight, 512.0f, 512.0f);
+  }
+  else
+  {
+    // Reduced-size image from the host: stretch it over the whole screen
+    sceGuTexFilter(GU_LINEAR, GU_LINEAR);
+    sceGuTexImage(0, 512, 512, srcWidth, (void*)textureData);
+
+    graphicSlicedBlitScaled(-0.5f * imageWidth, -0.5f * imageHeight, imageWidth, imageHeight, (float)srcWidth, (float)srcHeight);
+  }
 
   sceGuFinish();
   sceGuSync(0,0);

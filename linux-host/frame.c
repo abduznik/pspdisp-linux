@@ -41,11 +41,16 @@ static void sample(capture_backend *cap, int outCol, int outRow, int outW, int o
   rgb[0] = sr / n; rgb[1] = sg / n; rgb[2] = sb / n;
 }
 
+/* Wire image size presets; must match compressGetFrameSize() in psp/source/compress.c.
+   The PSP stretches the image to fill the screen, so aspect need not match. */
+static const int scale_presets[4][2] = { {480, 272}, {384, 208}, {320, 176}, {240, 144} };
+
 unsigned char *frame_encode(capture_backend *cap, unsigned long *out_size, uint32_t *out_flags)
 {
   bool swap = (g_opt.rotation == 90 || g_opt.rotation == 270);
-  int outW = swap ? PSP_H : PSP_W;
-  int outH = swap ? PSP_W : PSP_H;
+  int sc = (g_opt.scale >= 0 && g_opt.scale <= 3) ? g_opt.scale : 0;
+  int outW = swap ? scale_presets[sc][1] : scale_presets[sc][0];
+  int outH = swap ? scale_presets[sc][0] : scale_presets[sc][1];
 
   struct jpeg_compress_struct cinfo;
   struct jpeg_error_mgr jerr;
@@ -58,6 +63,13 @@ unsigned char *frame_encode(capture_backend *cap, unsigned long *out_size, uint3
   cinfo.input_components = 3; cinfo.in_color_space = JCS_RGB;
   jpeg_set_defaults(&cinfo);
   jpeg_set_quality(&cinfo, g_quality_cur, TRUE);
+  /* Eyes barely notice colour detail: quantise chroma coarser than luma. */
+  if (g_opt.chroma_boost > 100 && cinfo.quant_tbl_ptrs[1]) {
+    for (int i = 0; i < 64; i++) {
+      unsigned v = (unsigned)cinfo.quant_tbl_ptrs[1]->quantval[i] * (unsigned)g_opt.chroma_boost / 100;
+      cinfo.quant_tbl_ptrs[1]->quantval[i] = (UINT16)(v > 255 ? 255 : (v < 1 ? 1 : v));
+    }
+  }
   cinfo.optimize_coding = TRUE;
   jpeg_start_compress(&cinfo, TRUE);
 
@@ -72,7 +84,8 @@ unsigned char *frame_encode(capture_backend *cap, unsigned long *out_size, uint3
   jpeg_finish_compress(&cinfo);
   jpeg_destroy_compress(&cinfo);
 
-  uint32_t flags = COM_FLAGS_CONTAINS_IMAGE_DATA | COM_FLAGS_IMAGE_IS_JPEG;
+  uint32_t flags = COM_FLAGS_CONTAINS_IMAGE_DATA | COM_FLAGS_IMAGE_IS_JPEG |
+                   ((uint32_t)sc << COM_FLAGS_IMAGE_SCALE_SHIFT);
   if (g_opt.rotation == 90)  flags |= COM_FLAGS_IMAGE_IS_ROTATED_90;
   if (g_opt.rotation == 180) flags |= COM_FLAGS_IMAGE_IS_ROTATED_180;
   if (g_opt.rotation == 270) flags |= COM_FLAGS_IMAGE_IS_ROTATED_270;

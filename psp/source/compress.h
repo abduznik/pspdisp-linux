@@ -39,4 +39,6 @@ void compressDecodingAndDrawingThread(SceSize args, void *argp);
 void compressSwitchTargetBuffer();
 void compressPngReadDataCallback(png_structp png_ptr, png_bytep data, png_size_t length);
 
+void compressGetFrameSize(unsigned int flags, unsigned int* width, unsigned int* height);
+
 #endif

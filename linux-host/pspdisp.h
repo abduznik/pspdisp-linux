@@ -18,6 +18,8 @@ typedef struct {
   int   rotation;            /* 0/90/180/270                                */
   int   quality;             /* JPEG 1..100 (max when adaptive)             */
   int   min_quality;         /* >0: adaptive floor                          */
+  int   scale;               /* wire image size preset 0..3 (0 = 480x272)    */
+  int   chroma_boost;        /* chroma quantisation, % of luma's (100 = same) */
   int   window;              /* frames in flight (0 = auto: 2 tcp, 1 usb)   */
   int   fps;
   bool  input;               /* uinput gamepad                              */

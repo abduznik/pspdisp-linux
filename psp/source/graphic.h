@@ -98,7 +98,7 @@ void graphicDrawColoredRectangle(int colorTop, int colorBottom, int startX, int 
 void graphicDrawTexturedRectangle(void* texture, int startX, int startY, int width, int height);
 void graphicSlicedBlit(float startX, float startY, float imageWidth, float imageHeight, float textureWidth, float textureHeight);
 void graphicRedrawLastFrame();
-void graphicDrawFrame(unsigned int* textureData, unsigned int rotation, bool forceDrawing);
+void graphicDrawFrame(unsigned int* textureData, unsigned int rotation, bool forceDrawing, unsigned int srcWidth, unsigned int srcHeight);
 void graphicDrawWave(float period, float offset, float amplitude);
 void graphicStartDrawing();
 void graphicFinishDrawing(bool switchBuffer);

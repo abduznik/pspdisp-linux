@@ -302,6 +302,34 @@ void compressConvertBmp(comFrameHeader* frameHeader)
 
 
 /*
+  compressGetFrameSize
+  ---------------------------------------------------
+  Size of the decoded wire image for a frame. Presets must match
+  scale_presets in linux-host/frame.c; widths/heights are multiples of 16.
+  ---------------------------------------------------
+*/
+void compressGetFrameSize(unsigned int flags, unsigned int* width, unsigned int* height)
+{
+  static const unsigned int presets[4][2] = { {480, 272}, {384, 208}, {320, 176}, {240, 144} };
+  unsigned int s = (flags & COM_FLAGS_IMAGE_SCALE_MASK) >> COM_FLAGS_IMAGE_SCALE_SHIFT;
+  if (s > 3) s = 0;
+  if ((flags & COM_FLAGS_IMAGE_IS_ROTATED_90_DEG) || (flags & COM_FLAGS_IMAGE_IS_ROTATED_270_DEG))
+  {
+    *width = presets[s][1];
+    *height = presets[s][0];
+  }
+  else
+  {
+    *width = presets[s][0];
+    *height = presets[s][1];
+  }
+}
+
+
+
+
+
+/*
   compressDecompressJpeg
   ---------------------------------------------------
   Decompress a Jpeg frame.
@@ -309,22 +337,20 @@ void compressConvertBmp(comFrameHeader* frameHeader)
 */
 void compressDecompressJpeg(comFrameHeader* frameHeader)
 {
-  static bool lastFrameRotated = false;
-  bool rotated = ((frameHeader->flags & COM_FLAGS_IMAGE_IS_ROTATED_90_DEG) || (frameHeader->flags & COM_FLAGS_IMAGE_IS_ROTATED_270_DEG));
+  static unsigned int lastWidth = 480;
+  static unsigned int lastHeight = 272;
+  unsigned int frameWidth, frameHeight;
+  compressGetFrameSize(frameHeader->flags, &frameWidth, &frameHeight);
 
   if (l_sceJpegAvailable)
   {
-    // Use sceJpeg* functions
-    if (lastFrameRotated != rotated)
+    // Use sceJpeg* functions; recreate the decoder whenever the image size changes
+    if ((lastWidth != frameWidth) || (lastHeight != frameHeight))
     {
       sceJpegDeleteMJpeg();
-
-      if (rotated)
-        sceJpegCreateMJpeg(272, 480);
-      else
-        sceJpegCreateMJpeg(480, 272);
-
-      lastFrameRotated = rotated;
+      sceJpegCreateMJpeg(frameWidth, frameHeight);
+      lastWidth = frameWidth;
+      lastHeight = frameHeight;
     }
 
     sceJpegDecodeMJpeg(&g_comImageReceiveBuffer[0], frameHeader->imageSize, g_pixelBuffer, 0);
@@ -503,7 +529,9 @@ void compressDecodingAndDrawingThread(SceSize args, void *argp)
     }
 
     // Draw image
-    graphicDrawFrame((unsigned int*)g_pixelBuffer, (frameHeader->flags & COM_FLAGS_IMAGE_ROTATION_MASK), false);
+    unsigned int drawWidth, drawHeight;
+    compressGetFrameSize(frameHeader->flags, &drawWidth, &drawHeight);
+    graphicDrawFrame((unsigned int*)g_pixelBuffer, (frameHeader->flags & COM_FLAGS_IMAGE_ROTATION_MASK), false, drawWidth, drawHeight);
   }
 
   // Don't draw when the menu is showing

@@ -280,6 +280,9 @@ static void usage(const char *p)
    "Quality / speed:\n"
    "  -q 1..100         JPEG quality (default: 100; lower = faster)\n"
    "  -f N              max frames per second (default: 60; PSP caps at 60)\n"
+   "  --scale N         send a smaller picture (80, 65 or 50 %%) that the PSP stretches to fill\n"
+   "                    its screen: far fewer bytes, softer image. Full PSP app only.\n"
+   "  --chroma N        color quantisation as %% of brightness's (default 100; 150-250 saves bytes)\n"
    "  --window N        frames in flight, 1-3 (default: 2 over Wi-Fi, 1 over USB). More keeps the\n"
    "                    link busy during the PSP's acknowledge (higher fps) at +1 frame of input delay\n"
    "  --min-quality N   adaptive: drop quality as low as N to hold -f, raise it back up to -q\n"
@@ -324,6 +327,7 @@ int main(int argc, char **argv)
   g_opt.x = g_opt.y = 0; g_opt.w = PSP_W; g_opt.h = PSP_H;
   g_opt.rotation = 0; g_opt.quality = 100; g_opt.fps = 60;
   g_opt.tcp_port = NET_PORT;
+  g_opt.chroma_boost = 200;
   g_opt.disp_w = 1920; g_opt.disp_h = 1080;   /* virtual output, downscaled */
 
   /* getopt() doesn't handle long options. Handle the long ones here, then
@@ -345,6 +349,12 @@ int main(int argc, char **argv)
       return 0;
     }
     if (!strcmp(argv[a], "--no-display")) { g_opt.no_display = true; continue; }
+    if (!strcmp(argv[a], "--scale") && a + 1 < argc) {
+      int pct = atoi(argv[++a]);
+      g_opt.scale = pct >= 100 ? 0 : pct >= 70 ? 1 : pct >= 57 ? 2 : 3;   /* 80% / 65% / 50% */
+      continue;
+    }
+    if (!strcmp(argv[a], "--chroma") && a + 1 < argc) { g_opt.chroma_boost = atoi(argv[++a]); continue; }
     if (!strcmp(argv[a], "--window") && a + 1 < argc) { g_opt.window = atoi(argv[++a]); continue; }
     if (!strcmp(argv[a], "--min-quality") && a + 1 < argc) { g_opt.min_quality = atoi(argv[++a]); continue; }
     if (!strcmp(argv[a], "--input-config") && a + 1 < argc) { g_opt.input_conf = argv[++a]; continue; }
