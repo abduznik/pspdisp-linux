@@ -181,6 +181,7 @@ int enterComLoop(int mode)
   sceKernelWaitThreadEnd(l_menuThreadId, NULL);
 
   // Shutdown the audio functions
+  audioAdpcmTerm();
   audioTerm();
 
   DEBUG_PRINTF("going back to the main menu\n");

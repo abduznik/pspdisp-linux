@@ -7,7 +7,7 @@ PREFIX   ?= /usr/local
 # pkg-config sets (libjpeg has no .pc on some distros -> linked manually)
 PKGS      = libusb-1.0 x11 xext wayland-client libpulse-simple libpulse
 CFLAGS   += $(shell pkg-config --cflags $(PKGS)) -Igen
-LDLIBS    = $(shell pkg-config --libs $(PKGS)) -ljpeg -lrt
+LDLIBS    = $(shell pkg-config --libs $(PKGS)) -ljpeg -lrt -lpthread
 
 SCANNER  ?= wayland-scanner
 WLR_XML   = protocol/wlr-screencopy-unstable-v1.xml

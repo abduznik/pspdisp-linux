@@ -22,6 +22,7 @@
 #define COM_FLAGS_AUDIO_CHUNK_2240       0x00010000u
 #define COM_FLAGS_AUDIO_CHUNK_2688       0x00020000u
 #define COM_FLAGS_IMAGE_CLEAR_SCREEN     0x00100000u
+#define COM_FLAGS_AUDIO_ADPCM            0x00400000u   /* settingsSize = ADPCM bytes after the image */
 #define COM_FLAGS_FORCE_UPDATE           0x01000000u
 
 #define PSP_W 480

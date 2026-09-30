@@ -142,20 +142,24 @@ static bool pump(void)
                COM_FLAGS_IMAGE_IS_ROTATED_270);
   }
 
-  FrameHeader hdr = { COM_HEADER_MAGIC, flags, (uint32_t)jsize, 0 };
+  /* ADPCM audio rides after the image; settingsSize carries its length (the
+     PSP already reads imageSize + settingsSize bytes, old apps just skip it) */
+  FrameHeader hdr = { COM_HEADER_MAGIC, flags, (uint32_t)jsize, (uint32_t)asize };
   bool ok;
-  if (g_opt.transport == TRANSPORT_TCP && jsize) {
-    /* one send() instead of two: fewer packets on a slow Wi-Fi link */
-    unsigned char *msg = malloc(sizeof hdr + jsize);
+  if (g_opt.transport == TRANSPORT_TCP) {
+    /* one send() instead of several: fewer packets on a slow Wi-Fi link */
+    unsigned char *msg = malloc(sizeof hdr + jsize + (size_t)asize);
     if (!msg) { free(jpeg); return false; }
-    memcpy(msg, &hdr, sizeof hdr); memcpy(msg + sizeof hdr, jpeg, jsize);
-    ok = (tp->write(msg, (int)(sizeof hdr + jsize)) == 0);
+    memcpy(msg, &hdr, sizeof hdr);
+    if (jsize) memcpy(msg + sizeof hdr, jpeg, jsize);
+    if (asize) memcpy(msg + sizeof hdr + jsize, audio, (size_t)asize);
+    ok = (tp->write(msg, (int)(sizeof hdr + jsize + (size_t)asize)) == 0);
     free(msg);
   } else {
     ok = (tp->write(&hdr, sizeof hdr) == 0);
     if (ok && jsize) ok = (tp->write(jpeg, jsize) == 0);
+    if (ok && asize) ok = (tp->write(audio, asize) == 0);
   }
-  if (ok && asize) ok = (tp->write(audio, asize) == 0);
   free(jpeg);
   if (!ok) return false;
 
@@ -244,7 +248,7 @@ static void usage(const char *p)
    "  --input-config F  gamepad mapping file (default: ~/.config/pspdisp/input.conf)\n"
    "                    see input.conf.example; chords like select+l = lt are supported\n"
    "                    send SIGUSR1 to toggle gamepad output on/off at runtime\n"
-   "  -a                stream PC audio to the PSP (experimental)\n"
+   "  -a                stream PC audio to the PSP (~5 KB/s ADPCM; full PSP app only)\n"
    "  -v                verbose (show fps / button data)\n"
    "  --background, -D  run detached (logs to $XDG_RUNTIME_DIR/pspdisp.log)\n"
    "  --help, -H        show this help\n"

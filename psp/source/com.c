@@ -198,6 +198,9 @@ bool readFrame(comFrameHeader* frameHeader, unsigned char* soundData, comSetting
     memcpy(soundData, &g_comImageReceiveBuffer[frameHeader->imageSize], audioFrameSize);
   }
 
+  if (frameHeader->flags & COM_FLAGS_AUDIO_ADPCM)
+    audioAdpcmPush(&g_comImageReceiveBuffer[frameHeader->imageSize], frameHeader->settingsSize);
+
   if (frameHeader->flags & COM_FLAGS_CONTAINS_SETTINGS_DATA)
   {
     int bufferPosition = frameHeader->imageSize + ((frameHeader->flags & COM_FLAGS_CONTAINS_AUDIO_DATA) ? audioFrameSize : 0);
@@ -361,5 +364,6 @@ void comLoop()
 
     sceDisplayWaitVblankStart();
   }
+  audioAdpcmTerm();
   DEBUG_PRINTF("comLoop: exit\n")
 }

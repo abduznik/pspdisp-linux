@@ -20,6 +20,13 @@ PSP buttons <- uinput gamepad <- transport <- PSP
 PC audio    -> PulseAudio -> PSP             (optional, -a)
 ```
 
+## Audio
+
+`-a` streams the PC's output sound (the default sink's monitor) to the PSP as 11025 Hz
+mono IMA ADPCM, about 5 KB/s, and sends nothing while the PC is silent. It is decoupled
+from the video frame rate. Full PSP app only; `PSPDISP_AUDIO_SOURCE=<name>` picks another
+PulseAudio source.
+
 ## Gamepad mapping
 
 `-i` presents a generic Xbox 360 pad (left/right stick, d-pad hat, A/B/X/Y, LB/RB,

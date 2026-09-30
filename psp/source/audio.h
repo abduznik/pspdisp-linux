@@ -38,6 +38,8 @@ void audioInit();
 void audioTerm();
 void audioCheckIfResetIsNeeded();
 void audioResetPlaybackBuffer();
+void audioAdpcmPush(const unsigned char* data, unsigned int len);
+void audioAdpcmTerm();
 void audioPlaybackThread(SceSize args, void *argp);
 
 

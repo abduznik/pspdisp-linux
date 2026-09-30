@@ -41,6 +41,7 @@
 #define COM_FLAGS_AUDIO_CHUNK_2240          0x00010000
 #define COM_FLAGS_AUDIO_CHUNK_2688          0x00020000
 
+#define COM_FLAGS_AUDIO_ADPCM               0x00400000   // settingsSize = ADPCM audio bytes after the image
 #define COM_FLAGS_IMAGE_CLEAR_SCREEN        0x00100000
 
 #define COM_FLAGS_FORCE_UPDATE              0x01000000
