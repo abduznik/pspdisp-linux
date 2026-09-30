@@ -20,7 +20,7 @@ static unsigned char  __attribute__((aligned(64))) l_recv[COM_IMAGE_BUFFER_SIZE]
 static comSettingsResponse __attribute__((aligned(64))) l_response;
 
 /* ---- overlay / menu state -------------------------------------------------*/
-static bool         l_menu  = false;     /* menu open?  toggled by HOME+VOL+  */
+static bool         l_menu  = false;     /* menu open?  toggled by Select+Triangle  */
 static bool         l_debug = false;     /* debug overlay shown?              */
 static int          l_sel   = 0;         /* menu cursor: 0=Debug 1=Quit       */
 static unsigned int l_prevBtn = 0;       /* for edge detection                */
@@ -78,27 +78,20 @@ static bool sendResponse(unsigned int buttons, unsigned char ax, unsigned char a
   return usbWriteRawBulkData(&l_response, sizeof l_response) == (int)sizeof l_response;
 }
 
-/* Double-press HOME (PS) toggles the menu (the PSP's VOL buttons don't register
-   in user mode, so a chord isn't usable). While open: D-pad moves the cursor,
-   X selects, O closes. Edge-triggered off the previous button state. */
-#define DOUBLE_TAP_US 500000
-static u64 l_lastHome = 0;
+/* Select+Start quits. Select+Triangle toggles the debug menu. PS is left
+   alone so the host can use it as a gamepad chord modifier. While open: D-pad
+   moves the cursor, X selects, O closes. Edge-triggered off the previous state. */
+#define QUIT_COMBO (PSP_CTRL_SELECT | PSP_CTRL_START)
 
 static void handleInput(unsigned int btn)
 {
   unsigned int pressed = btn & ~l_prevBtn;        /* newly-pressed this frame */
 
-  if (pressed & PSP_CTRL_HOME)
-  {
-    u64 now = sceKernelGetSystemTimeWide();
-    if (l_lastHome && (now - l_lastHome) <= DOUBLE_TAP_US)
-    {
-      l_menu = !l_menu;
-      l_lastHome = 0;                              /* consume the pair */
-    }
-    else
-      l_lastHome = now;
-  }
+  if ((btn & QUIT_COMBO) == QUIT_COMBO && (pressed & QUIT_COMBO))
+    g_quit = 1;
+
+  if ((btn & PSP_CTRL_SELECT) && (pressed & PSP_CTRL_TRIANGLE))
+    l_menu = !l_menu;
 
   if (l_menu)
   {

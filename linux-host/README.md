@@ -29,7 +29,8 @@ analog LT/RT, Back/Start/Guide, L3/R3), so games with native controller support
 
 ```
 triangle = y
-select+l = lt     # chord: hold Select and press L. The PSP has no triggers
+ps+l     = lt     # chord: hold PS and press L. The PSP has no triggers
+ps+select = face_stick  # toggle: face buttons become the right analog stick
 stick    = right  # left | right | none
 ```
 

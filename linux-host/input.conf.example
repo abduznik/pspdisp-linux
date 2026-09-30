@@ -1,9 +1,10 @@
 # PSPdisp gamepad mapping. Copy to ~/.config/pspdisp/input.conf (or pass
 # --input-config FILE). Lines override the built-in defaults shown here.
 #
-# PSP buttons: cross circle square triangle l r start select up down left right
-# Pad outputs: a b x y lb rb lt rt back start guide l3 r3 up down left right none
-# Chords:      hold one or more buttons first, e.g. select+l = lt
+# PSP buttons: cross circle square triangle l r start select ps up down left right
+# Pad outputs: a b x y lb rb lt rt back start guide l3 r3 up down left right
+#              face_stick (toggle: face buttons <-> right stick)  none
+# Chords:      hold one or more buttons first, e.g. ps+l = lt
 #              (buttons used as chord modifiers don't fire on their own)
 # Stick:       stick = left | right | none
 
@@ -20,8 +21,12 @@ down     = down
 left     = left
 right    = right
 
-# the PSP has no triggers, so chord them off the shoulders
-select+l = lt
-select+r = rt
+# the PSP has no triggers, so hold the PS button and press a shoulder
+ps+l     = lt
+ps+r     = rt
+
+# press PS+Select to toggle the face buttons into a right analog stick
+# (triangle=up, cross=down, square=left, circle=right); press again to go back
+ps+select = face_stick
 
 stick = left

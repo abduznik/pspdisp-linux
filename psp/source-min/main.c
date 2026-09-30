@@ -23,7 +23,7 @@ PSP_MAIN_THREAD_ATTR(PSP_THREAD_ATTR_USER);
 PSP_HEAP_SIZE_KB(2048);
 
 static volatile bool l_exit = false;
-volatile int g_quit = 0;          /* set by the menu Quit / prompt quit combo */
+volatile int g_quit = 0;          /* set by the menu Quit / Select+Start */
 
 /* Centered message on a black screen (pspDebugScreen is ~60 cols). l2 optional
    (dimmer, drawn below), pass NULL for a single line. */
@@ -49,23 +49,18 @@ static void screenMsg2(const char *l1, const char *l2)
 
 static void screenMsg(const char *msg) { screenMsg2(msg, NULL); }
 
-/* Wait for X. Returns true on X; false if the user asked to quit (double HOME). */
+/* Wait for X. Returns true on X; false if the user asked to quit (Select+Start). */
 static bool waitForCross(void)
 {
   unsigned int prev = 0;
-  u64 lastHome = 0;
   for (;;)
   {
     SceCtrlData pad;
     sceCtrlPeekBufferPositive(&pad, 1);
     unsigned int b = pad.Buttons;
     unsigned int pressed = b & ~prev;
-    if (pressed & PSP_CTRL_HOME)
-    {
-      u64 now = sceKernelGetSystemTimeWide();
-      if (lastHome && (now - lastHome) <= 500000) { g_quit = 1; return false; }
-      lastHome = now;
-    }
+    unsigned int combo = PSP_CTRL_SELECT | PSP_CTRL_START;
+    if ((b & combo) == combo && (pressed & combo)) { g_quit = 1; return false; }
     if (pressed & PSP_CTRL_CROSS) return true;
     prev = b;
     scePowerTick(0);
@@ -145,9 +140,9 @@ int main(int argc, char *argv[])
   {
     /* Prompt -> wait for X -> try to connect for 10s -> report -> repeat. */
     screenMsg2("Connect a USB device and press X",
-               "Double-press PS button to quit");
+               "Press Select+Start to quit");
     if (!waitForCross())
-      break;                                 /* HOME+VOL- = quit */
+      break;                                 /* Select+Start = quit */
 
     screenMsg("Connecting...");
     int r = comRun(true, 10 * 1000 * 1000);  /* 10s connect window */

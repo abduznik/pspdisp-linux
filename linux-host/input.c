@@ -15,15 +15,16 @@ volatile int g_input_enabled = 1;   /* toggled at runtime via SIGUSR1 */
 
 /* virtual pad outputs */
 enum { O_NONE, O_A, O_B, O_X, O_Y, O_LB, O_RB, O_LT, O_RT, O_BACK, O_START, O_GUIDE,
-       O_L3, O_R3, O_UP, O_DOWN, O_LEFT, O_RIGHT, O_COUNT };
+       O_L3, O_R3, O_UP, O_DOWN, O_LEFT, O_RIGHT, O_FACE_STICK, O_COUNT };
 
 static const struct { const char *name; int out; int key; } outs[] = {
   { "none", O_NONE, 0 },           { "a", O_A, BTN_SOUTH },      { "b", O_B, BTN_EAST },
-  { "x", O_X, BTN_WEST },          { "y", O_Y, BTN_NORTH },      { "lb", O_LB, BTN_TL },
+  { "x", O_X, BTN_NORTH },          { "y", O_Y, BTN_WEST },      { "lb", O_LB, BTN_TL },
   { "rb", O_RB, BTN_TR },          { "lt", O_LT, 0 },            { "rt", O_RT, 0 },
   { "back", O_BACK, BTN_SELECT },  { "start", O_START, BTN_START }, { "guide", O_GUIDE, BTN_MODE },
   { "l3", O_L3, BTN_THUMBL },      { "r3", O_R3, BTN_THUMBR },
   { "up", O_UP, 0 }, { "down", O_DOWN, 0 }, { "left", O_LEFT, 0 }, { "right", O_RIGHT, 0 },
+  { "face_stick", O_FACE_STICK, 0 },
 };
 #define NOUTS (int)(sizeof(outs)/sizeof(outs[0]))
 
@@ -31,6 +32,7 @@ static const struct { const char *name; uint32_t bit; } ins[] = {
   { "cross", PSP_CROSS }, { "circle", PSP_CIRCLE }, { "square", PSP_SQUARE },
   { "triangle", PSP_TRIANGLE }, { "l", PSP_LTRIG }, { "r", PSP_RTRIG },
   { "start", PSP_START }, { "select", PSP_SELECT },
+  { "ps", PSP_HOME },
   { "up", PSP_UP }, { "down", PSP_DOWN }, { "left", PSP_LEFT }, { "right", PSP_RIGHT },
 };
 #define NINS (int)(sizeof(ins)/sizeof(ins[0]))
@@ -57,7 +59,7 @@ static void load_defaults(void)
   static const char *d[][2] = {
     {"cross","a"},{"circle","b"},{"square","x"},{"triangle","y"},{"l","lb"},{"r","rb"},
     {"start","start"},{"select","back"},{"up","up"},{"down","down"},{"left","left"},{"right","right"},
-    {"select+l","lt"},{"select+r","rt"},
+    {"ps+l","lt"},{"ps+r","rt"},{"ps+select","face_stick"},
   };
   for (unsigned i = 0; i < sizeof d / sizeof d[0]; i++) {
     char k[32]; strcpy(k, d[i][0]);
@@ -174,9 +176,12 @@ static int best_rule(uint32_t held, uint32_t btn)
   return best;
 }
 
+#define FACE_MASK (PSP_CROSS | PSP_CIRCLE | PSP_SQUARE | PSP_TRIANGLE)
+
 void input_update(uint32_t buttons, uint8_t ax, uint8_t ay)
 {
   static bool last[O_COUNT];
+  static bool face_stick;   /* face buttons act as the right stick */
   if (fd < 0) return;
   if (!g_input_enabled) { buttons = 0; ax = ay = 128; }
 
@@ -189,9 +194,12 @@ void input_update(uint32_t buttons, uint8_t ax, uint8_t ay)
   }
   for (int i = 0; i < NINS; i++) {
     if (!(buttons & ins[i].bit) || (consumed & ins[i].bit)) continue;
+    if (face_stick && (ins[i].bit & FACE_MASK)) continue;
     int r = best_rule(buttons, ins[i].bit);
     if (r >= 0) now[rules[r].out] = true;
   }
+
+  if (now[O_FACE_STICK] && !last[O_FACE_STICK]) face_stick = !face_stick;
 
   for (int i = 0; i < NOUTS; i++) {
     int o = outs[i].out;
@@ -202,6 +210,10 @@ void input_update(uint32_t buttons, uint8_t ax, uint8_t ay)
   int lx = 0, ly = 0, rx = 0, ry = 0;
   if (stick_mode == STICK_LEFT)  { lx = axis16(ax); ly = axis16(ay); }
   if (stick_mode == STICK_RIGHT) { rx = axis16(ax); ry = axis16(ay); }
+  if (face_stick && !(consumed & FACE_MASK)) {
+    rx = ((buttons & PSP_CIRCLE) ? 32767 : 0) - ((buttons & PSP_SQUARE) ? 32767 : 0);
+    ry = ((buttons & PSP_CROSS) ? 32767 : 0) - ((buttons & PSP_TRIANGLE) ? 32767 : 0);
+  }
   emit(EV_ABS, ABS_X, lx);  emit(EV_ABS, ABS_Y, ly);
   emit(EV_ABS, ABS_RX, rx); emit(EV_ABS, ABS_RY, ry);
   emit(EV_ABS, ABS_Z,  now[O_LT] ? 255 : 0);
