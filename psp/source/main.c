@@ -213,7 +213,15 @@ void menuThread(SceSize args, void *argp)
     if (utilsCtrlReadBufferPositive(&ctrlData, 1) != 1)
       DEBUG_PRINTF("menuThread: utilsCtrlReadBufferPositive error\n");
 
-    if (!g_msgActive && (ctrlData.Buttons & PSP_CTRL_HOME) && !(oldButtons & PSP_CTRL_HOME))
+    // Select+Triangle opens the menu, Select+Start quits to the main menu. PS is
+    // left free so the host can use it as a gamepad chord modifier.
+    unsigned int pressedNow = ctrlData.Buttons & ~oldButtons;
+    unsigned int menuCombo = PSP_CTRL_SELECT | PSP_CTRL_TRIANGLE;
+    unsigned int quitCombo = PSP_CTRL_SELECT | PSP_CTRL_START;
+    bool wantQuit = (ctrlData.Buttons & quitCombo) == quitCombo && (pressedNow & quitCombo);
+    bool wantMenu = (ctrlData.Buttons & menuCombo) == menuCombo && (pressedNow & menuCombo);
+
+    if (!g_msgActive && (wantMenu || wantQuit))
     {
       DEBUG_PRINTF("menuThread: Opening menu, buttons = 0x%08lX, last buttons = 0x%08lX\n", (long)ctrlData.Buttons, (long)oldButtons);
       
@@ -221,7 +229,7 @@ void menuThread(SceSize args, void *argp)
       
       g_menuActive = true;
       DEBUG_PRINTF("menuThread: to menuLoop\n");
-      int result = menuLoop(MENU_INGAME);
+      int result = wantQuit ? MENU_QUIT : menuLoop(MENU_INGAME);
       DEBUG_PRINTF("menuThread: from menuLoop\n");
       if (result == MENU_QUIT)
       {
