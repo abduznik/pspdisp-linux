@@ -41,7 +41,7 @@ gen/wlr-screencopy-protocol.c: $(WLR_XML)
 # system-wide install (needs root): /usr/local/bin + udev rule
 install: pspdisp
 	install -Dm755 pspdisp $(DESTDIR)$(PREFIX)/bin/pspdisp
-	install -Dm644 99-pspdisp.rules $(DESTDIR)/etc/udev/rules.d/99-pspdisp.rules
+	install -Dm644 60-pspdisp.rules $(DESTDIR)/etc/udev/rules.d/60-pspdisp.rules
 	@echo "now: sudo udevadm control --reload && sudo udevadm trigger"
 
 # per-user install (no root): ~/.local/bin. The udev rule still needs root for
@@ -55,7 +55,7 @@ install-user: pspdisp
 	@echo "for USB without sudo, also: sudo make install-udev"
 
 install-udev:
-	install -Dm644 99-pspdisp.rules $(DESTDIR)/etc/udev/rules.d/99-pspdisp.rules
+	install -Dm644 60-pspdisp.rules $(DESTDIR)/etc/udev/rules.d/60-pspdisp.rules
 	udevadm control --reload && udevadm trigger
 
 clean:

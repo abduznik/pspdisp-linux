@@ -1,0 +1,10 @@
+# PSPdisp: let the local user talk to the PSP over USB and use uinput.
+# PSP in usbhostfs mode: Sony VID 054c, PID 01c9 (type B) / 01ca (type C).
+# uaccess grants the active seat's user an ACL. It must be tagged before
+# 73-seat-late.rules runs, hence the low file number; no GROUP= (plugdev does
+# not exist on Fedora/Arch and makes udev drop the whole line).
+SUBSYSTEM=="usb", ATTR{idVendor}=="054c", ATTR{idProduct}=="01c9", MODE="0660", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="054c", ATTR{idProduct}=="01ca", MODE="0660", TAG+="uaccess"
+
+# Virtual gamepad injection (-i flag).
+KERNEL=="uinput", MODE="0660", GROUP="input", TAG+="uaccess", OPTIONS+="static_node=uinput"

@@ -136,7 +136,7 @@ Arch: `libusb libjpeg-turbo libx11 libxext wayland wayland-protocols libpulse`
 For the portal backend add `pipewire-devel`/`libpipewire-0.3-dev`, `libgbm-dev`,
 `libdrm-dev` and the EGL/GLES dev packages for your distro.
 
-The udev rule (`99-pspdisp.rules`) gives a normal user access to the PSP and to
+The udev rule (`60-pspdisp.rules`) gives a normal user access to the PSP and to
 `/dev/uinput`. Without it you need `sudo` for USB and for `-i`.
 
 ### PSP homebrew
