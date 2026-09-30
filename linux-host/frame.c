@@ -57,7 +57,7 @@ unsigned char *frame_encode(capture_backend *cap, unsigned long *out_size, uint3
   cinfo.image_width = outW; cinfo.image_height = outH;
   cinfo.input_components = 3; cinfo.in_color_space = JCS_RGB;
   jpeg_set_defaults(&cinfo);
-  jpeg_set_quality(&cinfo, g_opt.quality, TRUE);
+  jpeg_set_quality(&cinfo, g_quality_cur, TRUE);
   cinfo.optimize_coding = TRUE;
   jpeg_start_compress(&cinfo, TRUE);
 

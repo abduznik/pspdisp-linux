@@ -16,7 +16,8 @@ typedef struct {
   capture_kind   capture;
   int   x, y, w, h;          /* X11 region (w/h also = evdi virtual mode)  */
   int   rotation;            /* 0/90/180/270                                */
-  int   quality;             /* JPEG 1..100                                 */
+  int   quality;             /* JPEG 1..100 (max when adaptive)             */
+  int   min_quality;         /* >0: adaptive floor                          */
   int   fps;
   bool  input;               /* uinput gamepad                              */
   bool  audio;               /* PulseAudio capture (best-effort, untested)  */
@@ -28,6 +29,7 @@ typedef struct {
 } options;
 
 extern options g_opt;
+extern int g_quality_cur;   /* quality frame_encode uses (main.c) */
 #define VLOG(...) do { if (g_opt.verbose) fprintf(stderr, __VA_ARGS__); } while (0)
 
 /* auto virtual display (display_auto.c) */

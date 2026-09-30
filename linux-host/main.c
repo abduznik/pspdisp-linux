@@ -84,18 +84,44 @@ static bool read_response(ResponseHeader *out)
 
 static bool force_next;   /* PSP asked (FORCE_UPDATE) for a full frame next */
 
-/* one transmit/receive cycle. send_image=false => poll-only header. */
-static bool pump(bool send_image)
+/* The next frame, captured and encoded while the PSP is busy with the last one. */
+static struct { unsigned char *jpeg; unsigned long size; uint32_t flags; } pending;
+int g_quality_cur;        /* quality actually used by frame_encode (adaptive) */
+
+static bool encode_pending(void)
+{
+  pending.jpeg = frame_encode(cap, &pending.size, &pending.flags);
+  return pending.jpeg != NULL;
+}
+
+/* grab the next frame; encode it only if it changed (or a refresh is due). */
+static bool prepare_next(void)
+{
+  static uint64_t last_hash;
+  static int idle;
+
+  if (!cap->grab()) { fprintf(stderr, "\ncapture failed\n"); return false; }
+  uint64_t h = frame_hash(cap);
+  bool changed = (h != last_hash);
+  last_hash = h;
+
+  /* send the image on change; force a refresh at least every ~2s even if
+     static (keeps the PSP from timing out and recovers dropped frames). */
+  bool send_image = changed || force_next || (++idle >= g_opt.fps * 2);
+  if (!send_image) return true;
+  idle = 0; force_next = false;
+  return encode_pending();
+}
+
+/* one transmit/receive cycle: send the prepared frame, prepare the next one
+   while waiting for the PSP's reply, then read the reply. */
+static bool pump(void)
 {
   static unsigned char audio[8192];
-  unsigned char *jpeg = NULL;
-  unsigned long jsize = 0;
-  uint32_t flags = 0;
-
-  if (send_image) {
-    jpeg = frame_encode(cap, &jsize, &flags);
-    if (!jpeg) return false;
-  }
+  unsigned char *jpeg = pending.jpeg;
+  unsigned long jsize = jpeg ? pending.size : 0;
+  uint32_t flags = jpeg ? pending.flags : 0;
+  pending.jpeg = NULL;
 
   int asize = 0;
   if (g_opt.audio) {
@@ -117,49 +143,71 @@ static bool pump(bool send_image)
   }
 
   FrameHeader hdr = { COM_HEADER_MAGIC, flags, (uint32_t)jsize, 0 };
-  bool ok = (tp->write(&hdr, sizeof hdr) == 0);
-  if (ok && jsize)  ok = (tp->write(jpeg, jsize) == 0);
-  if (ok && asize)  ok = (tp->write(audio, asize) == 0);
+  bool ok;
+  if (g_opt.transport == TRANSPORT_TCP && jsize) {
+    /* one send() instead of two: fewer packets on a slow Wi-Fi link */
+    unsigned char *msg = malloc(sizeof hdr + jsize);
+    if (!msg) { free(jpeg); return false; }
+    memcpy(msg, &hdr, sizeof hdr); memcpy(msg + sizeof hdr, jpeg, jsize);
+    ok = (tp->write(msg, (int)(sizeof hdr + jsize)) == 0);
+    free(msg);
+  } else {
+    ok = (tp->write(&hdr, sizeof hdr) == 0);
+    if (ok && jsize) ok = (tp->write(jpeg, jsize) == 0);
+  }
+  if (ok && asize) ok = (tp->write(audio, asize) == 0);
   free(jpeg);
   if (!ok) return false;
+
+  /* overlap: the PSP is decoding/displaying; get the next frame ready now */
+  if (!prepare_next()) return false;
 
   ResponseHeader resp;
   if (!read_response(&resp)) return false;
   if (resp.magic != COM_HEADER_MAGIC) return true;     /* tolerate one desync */
 
   /* PSP requests a forced full frame (e.g. after closing its menu/OSK). */
-  if (resp.flags & COM_FLAGS_FORCE_UPDATE) force_next = true;
+  if (resp.flags & COM_FLAGS_FORCE_UPDATE) {
+    force_next = true;
+    if (!pending.jpeg && !encode_pending()) return false;
+  }
 
   if (g_opt.input) input_update(resp.buttons, resp.analogX, resp.analogY);
-  VLOG("\r%6lu B  btn %08x  ax %3u ay %3u   ", jsize, resp.buttons, resp.analogX, resp.analogY);
+  VLOG("\r%6lu B  q%-3d btn %08x  ax %3u ay %3u   ", jsize, g_quality_cur, resp.buttons, resp.analogX, resp.analogY);
   return true;
+}
+
+/* --min-quality: lower JPEG quality when the link can't hold the target fps,
+   raise it again (up to -q) when there is headroom. */
+static void adapt_quality(long used_us, long budget_us)
+{
+  if (g_opt.min_quality <= 0 || g_opt.min_quality >= g_opt.quality) return;
+  if (used_us > budget_us && g_quality_cur > g_opt.min_quality)
+    g_quality_cur = g_quality_cur - 3 < g_opt.min_quality ? g_opt.min_quality : g_quality_cur - 3;
+  else if (used_us < budget_us * 3 / 4 && g_quality_cur < g_opt.quality)
+    g_quality_cur = g_quality_cur + 1 > g_opt.quality ? g_opt.quality : g_quality_cur + 1;
 }
 
 static void loop(void)
 {
   long frame_us = 1000000L / (g_opt.fps > 0 ? g_opt.fps : 20);
-  uint64_t last_hash = 0;
-  int idle = 0;
+  g_quality_cur = g_opt.quality;
+
+  if (!prepare_next()) return;
+  /* a first frame must always go out */
+  if (!pending.jpeg && !encode_pending()) return;
 
   while (run) {
     struct timespec t0, t1; clock_gettime(CLOCK_MONOTONIC, &t0);
 
-    if (!cap->grab()) { fprintf(stderr, "\ncapture failed\n"); break; }
-    uint64_t h = frame_hash(cap);
-    bool changed = (h != last_hash);
-    last_hash = h;
-
-    /* send the image on change; force a refresh at least every ~2s even if
-       static (keeps the PSP from timing out and recovers dropped frames). */
-    bool send_image = changed || force_next || (++idle >= g_opt.fps * 2);
-    if (send_image) { idle = 0; force_next = false; }
-
-    if (!pump(send_image)) { fprintf(stderr, "\nlink lost\n"); break; }
+    if (!pump()) { fprintf(stderr, "\nlink lost\n"); break; }
 
     clock_gettime(CLOCK_MONOTONIC, &t1);
     long used = (t1.tv_sec - t0.tv_sec) * 1000000L + (t1.tv_nsec - t0.tv_nsec) / 1000;
+    adapt_quality(used, frame_us);
     if (used < frame_us) usleep(frame_us - used);
   }
+  free(pending.jpeg); pending.jpeg = NULL;
 }
 
 static void usage(const char *p)
@@ -189,6 +237,7 @@ static void usage(const char *p)
    "Quality / speed:\n"
    "  -q 1..100         JPEG quality (default: 100; lower = faster)\n"
    "  -f N              max frames per second (default: 60; PSP caps at 60)\n"
+   "  --min-quality N   adaptive: drop quality as low as N to hold -f, raise it back up to -q\n"
    "\n"
    "Extras:\n"
    "  -i                expose PSP buttons as a uinput Xbox 360 gamepad\n"
@@ -251,6 +300,7 @@ int main(int argc, char **argv)
       return 0;
     }
     if (!strcmp(argv[a], "--no-display")) { g_opt.no_display = true; continue; }
+    if (!strcmp(argv[a], "--min-quality") && a + 1 < argc) { g_opt.min_quality = atoi(argv[++a]); continue; }
     if (!strcmp(argv[a], "--input-config") && a + 1 < argc) { g_opt.input_conf = argv[++a]; continue; }
     argv[w++] = argv[a];          /* keep everything else for getopt */
   }
