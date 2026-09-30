@@ -17,6 +17,7 @@
 options g_opt;
 static volatile sig_atomic_t run = 1;
 static void on_sig(int s) { (void)s; run = 0; }
+static void on_usr1(int s) { (void)s; g_input_enabled = !g_input_enabled; }
 
 /* Single-instance lock: two hosts fighting over the same USB device cause
    claim failures and disconnect storms (a "black screen" we hit repeatedly).
@@ -190,7 +191,9 @@ static void usage(const char *p)
    "  -f N              max frames per second (default: 60; PSP caps at 60)\n"
    "\n"
    "Extras:\n"
-   "  -i                expose PSP buttons as a uinput gamepad\n"
+   "  -i                expose PSP buttons as a uinput Xbox 360 gamepad\n"
+   "  --profile NAME    gamepad layout: default, or lol (hold Select: L/R -> LT/RT)\n"
+   "                    send SIGUSR1 to toggle gamepad output on/off at runtime\n"
    "  -a                stream PC audio to the PSP (experimental)\n"
    "  -v                verbose (show fps / button data)\n"
    "  --background, -D  run detached (logs to $XDG_RUNTIME_DIR/pspdisp.log)\n"
@@ -244,6 +247,10 @@ int main(int argc, char **argv)
       return 0;
     }
     if (!strcmp(argv[a], "--no-display")) { g_opt.no_display = true; continue; }
+    if (!strcmp(argv[a], "--profile") && a + 1 < argc) {
+      g_opt.profile = !strcmp(argv[++a], "lol") ? PROFILE_LOL : PROFILE_DEFAULT;
+      continue;
+    }
     argv[w++] = argv[a];          /* keep everything else for getopt */
   }
   argc = w;
@@ -291,6 +298,8 @@ int main(int argc, char **argv)
     sa.sa_handler = on_sig;            /* sa_flags = 0 -> no SA_RESTART */
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
+    sa.sa_handler = on_usr1;
+    sigaction(SIGUSR1, &sa, NULL);
   }
 
   tp  = (g_opt.transport == TRANSPORT_TCP) ? transport_tcp() : transport_usb();

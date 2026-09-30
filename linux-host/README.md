@@ -20,6 +20,13 @@ PSP buttons <- uinput gamepad <- transport <- PSP
 PC audio    -> PulseAudio -> PSP             (optional, -a)
 ```
 
+## League of Legends
+
+`pspdisp -i --profile lol` presents an Xbox 360 pad (left stick, d-pad hat, A/B/X/Y,
+LB/RB, analog LT/RT). The PSP has no triggers, so holding Select turns L and R into
+LT and RT. `kill -USR1 $(pgrep -x pspdisp)` toggles gamepad output on/off live
+without touching the video stream.
+
 ## Capture backends
 
 | Backend | Where it applies | How |
@@ -91,7 +98,8 @@ Quality and speed
   -f N                 fps cap (default 60; the PSP caps at 60 anyway)
 
 Extras
-  -i                   expose PSP buttons as a uinput gamepad
+  -i                   expose PSP buttons as a uinput Xbox 360 gamepad
+  --profile lol        League of Legends layout: hold Select, L/R -> LT/RT (Q/W/E/R = LT/LB/RB/RT)
   -a                   stream PC audio to the PSP (experimental)
   -v                   verbose: fps and button data
   --background, -D     run detached, logs to $XDG_RUNTIME_DIR/pspdisp.log
