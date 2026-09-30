@@ -87,6 +87,8 @@ static bool force_next;   /* PSP asked (FORCE_UPDATE) for a full frame next */
 /* The next frame, captured and encoded while the PSP is busy with the last one. */
 static struct { unsigned char *jpeg; unsigned long size; uint32_t flags; } pending;
 int g_quality_cur;        /* quality actually used by frame_encode (adaptive) */
+static bool audio_yield;  /* link is struggling: audio is muted so video keeps flowing */
+#define AUDIO_BACKLOG_LIMIT 6000   /* unsent bytes; above this the audio is dropped */
 
 static bool encode_pending(void)
 {
@@ -125,9 +127,16 @@ static bool pump(void)
 
   int asize = 0;
   if (g_opt.audio) {
-    uint32_t aflags = 0;
-    asize = audio_read_frame(audio, sizeof audio, &aflags);
-    if (asize > 0) flags |= aflags;
+    /* audio is best-effort: never let it queue up behind (or delay) video */
+    if (audio_yield) {
+      audio_drop();
+    } else {
+      uint32_t aflags = 0;
+      asize = audio_read_frame(audio, sizeof audio, &aflags);
+      if (asize > 0 && tp->backlog && tp->backlog() > AUDIO_BACKLOG_LIMIT)
+        asize = 0;
+      if (asize > 0) flags |= aflags;
+    }
   }
 
   /* Never overflow the PSP's 400 KB receive buffer. If an encoded frame is
@@ -183,10 +192,10 @@ static bool pump(void)
 
 /* --min-quality: lower JPEG quality when the link can't hold the target fps,
    raise it again (up to -q) when there is headroom. */
-static void adapt_quality(long used_us, long budget_us)
+static void adapt_quality(long used_us, long budget_us, bool may_lower)
 {
   if (g_opt.min_quality <= 0 || g_opt.min_quality >= g_opt.quality) return;
-  if (used_us > budget_us && g_quality_cur > g_opt.min_quality)
+  if (may_lower && used_us > budget_us && g_quality_cur > g_opt.min_quality)
     g_quality_cur = g_quality_cur - 3 < g_opt.min_quality ? g_opt.min_quality : g_quality_cur - 3;
   else if (used_us < budget_us * 3 / 4 && g_quality_cur < g_opt.quality)
     g_quality_cur = g_quality_cur + 1 > g_opt.quality ? g_opt.quality : g_quality_cur + 1;
@@ -208,7 +217,17 @@ static void loop(void)
 
     clock_gettime(CLOCK_MONOTONIC, &t1);
     long used = (t1.tv_sec - t0.tv_sec) * 1000000L + (t1.tv_nsec - t0.tv_nsec) / 1000;
-    adapt_quality(used, frame_us);
+    /* when frames run late, mute audio first; only lower video quality if we
+       are still late with the audio already off */
+    bool was_yielding = audio_yield;
+    if (g_opt.audio) {
+      static int slow, calm;
+      if (used > frame_us) { slow += 2; calm = 0; }
+      else { if (slow > 0) slow--; if (used < frame_us * 6 / 10) calm++; else calm = 0; }
+      if (slow >= 4) audio_yield = true;
+      else if (audio_yield && calm >= 15) { audio_yield = false; slow = 0; }
+    }
+    adapt_quality(used, frame_us, !g_opt.audio || was_yielding);
     if (used < frame_us) usleep(frame_us - used);
   }
   free(pending.jpeg); pending.jpeg = NULL;

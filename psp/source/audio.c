@@ -193,6 +193,8 @@ static volatile unsigned int l_adpcmWrite = 0;   // only the receive thread writ
 static volatile bool l_adpcmRun = false;
 static SceUID l_adpcmThreadId = -1;
 
+// Priority 0x28 is lower than the video decode thread (0x18): if the CPU is
+// short, audio starves (brief silence) instead of delaying video.
 static int audioAdpcmThread(SceSize args, void *argp)
 {
   short out[ADPCM_BLOCK * 4 * 2] __attribute__((aligned(64)));
@@ -250,7 +252,7 @@ void audioAdpcmPush(const unsigned char* data, unsigned int len)
   {
     l_adpcmRead = l_adpcmWrite = 0;
     l_adpcmRun = true;
-    l_adpcmThreadId = sceKernelCreateThread("adpcmThread", audioAdpcmThread, 0x18, 0x10000, PSP_THREAD_ATTR_USER, 0);
+    l_adpcmThreadId = sceKernelCreateThread("adpcmThread", audioAdpcmThread, 0x28, 0x10000, PSP_THREAD_ATTR_USER, 0);
     if (l_adpcmThreadId < 0) { l_adpcmRun = false; return; }
     sceKernelStartThread(l_adpcmThreadId, 0, NULL);
   }

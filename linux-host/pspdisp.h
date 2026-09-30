@@ -45,6 +45,7 @@ typedef struct {
   int  (*read)(void *buf, int len, unsigned timeout_ms);
   void (*close)(void);
   bool full_response;                        /* true => read 90B, else 14B  */
+  int  (*backlog)(void);                     /* unsent bytes queued, or NULL */
 } transport_backend;
 
 transport_backend *transport_usb(void);
@@ -83,8 +84,9 @@ extern volatile int g_input_enabled;   /* SIGUSR1 toggles gamepad output */
 
 /* audio capture (audio_pulse.c) */
 bool audio_init(void);
-/* Fill up to one PSP audio frame; returns bytes produced (0 if none ready). */
+/* Next ADPCM packet from whatever audio has accumulated; bytes produced (0 = none). */
 int  audio_read_frame(uint8_t *dst, int max, uint32_t *audio_flags);
+void audio_drop(void);            /* discard captured audio without sending it */
 void audio_term(void);
 
 #endif

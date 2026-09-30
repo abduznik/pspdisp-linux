@@ -2,6 +2,8 @@
    it connects to NET_PORT(+offset), sends a 32-byte password, then the same
    frame protocol runs over the socket. */
 #include <stdio.h>
+#include <sys/ioctl.h>
+#include <linux/sockios.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
@@ -74,13 +76,20 @@ static bool t_open(void)
   return true;
 }
 
+static int t_backlog(void)
+{
+  int n = 0;
+  if (connfd < 0 || ioctl(connfd, SIOCOUTQ, &n) < 0) return 0;
+  return n;
+}
+
 static void t_close(void)
 {
   if (connfd >= 0) { close(connfd); connfd = -1; }
 }
 
 static transport_backend backend = {
-  .name = "tcp", .open = t_open, .write = t_write, .read = t_read,
+  .name = "tcp", .open = t_open, .write = t_write, .read = t_read, .backlog = t_backlog,
   .close = t_close, .full_response = false,
 };
 transport_backend *transport_tcp(void) { return &backend; }

@@ -91,6 +91,13 @@ int audio_read_frame(uint8_t *dst, int max, uint32_t *audio_flags)
   return adpcm_encode_packet(&enc, pcm, n, dst);
 }
 
+void audio_drop(void)
+{
+  pthread_mutex_lock(&mu);
+  rd_pos = wr_pos;
+  pthread_mutex_unlock(&mu);
+}
+
 void audio_term(void)
 {
   if (!pa) return;
