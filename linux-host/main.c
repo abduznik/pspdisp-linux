@@ -115,6 +115,27 @@ static bool prepare_next(void)
   return encode_pending();
 }
 
+static int inflight;                 /* frames sent but not yet acknowledged */
+static unsigned long last_frame_bytes;
+
+/* read one PSP reply: controls in, and a possible request for a full frame */
+static bool handle_response(void)
+{
+  ResponseHeader resp;
+  if (!read_response(&resp)) return false;
+  if (resp.magic != COM_HEADER_MAGIC) return true;     /* tolerate one desync */
+
+  /* PSP requests a forced full frame (e.g. after closing its menu/OSK). */
+  if (resp.flags & COM_FLAGS_FORCE_UPDATE) {
+    force_next = true;
+    if (!pending.jpeg && !encode_pending()) return false;
+  }
+
+  if (g_opt.input) input_update(resp.buttons, resp.analogX, resp.analogY);
+  VLOG("btn %08x  ax %3u ay %3u   ", resp.buttons, resp.analogX, resp.analogY);
+  return true;
+}
+
 /* one transmit/receive cycle: send the prepared frame, prepare the next one
    while waiting for the PSP's reply, then read the reply. */
 static bool pump(void)
@@ -133,7 +154,7 @@ static bool pump(void)
     } else {
       uint32_t aflags = 0;
       asize = audio_read_frame(audio, sizeof audio, &aflags);
-      if (asize > 0 && tp->backlog && tp->backlog() > AUDIO_BACKLOG_LIMIT)
+      if (asize > 0 && tp->backlog && tp->backlog() > (int)(AUDIO_BACKLOG_LIMIT + (unsigned long)g_opt.window * last_frame_bytes))
         asize = 0;
       if (asize > 0) flags |= aflags;
     }
@@ -175,18 +196,16 @@ static bool pump(void)
   /* overlap: the PSP is decoding/displaying; get the next frame ready now */
   if (!prepare_next()) return false;
 
-  ResponseHeader resp;
-  if (!read_response(&resp)) return false;
-  if (resp.magic != COM_HEADER_MAGIC) return true;     /* tolerate one desync */
+  last_frame_bytes = jsize;
+  inflight++;
 
-  /* PSP requests a forced full frame (e.g. after closing its menu/OSK). */
-  if (resp.flags & COM_FLAGS_FORCE_UPDATE) {
-    force_next = true;
-    if (!pending.jpeg && !encode_pending()) return false;
+  /* Keep up to `window` frames in flight. The PSP acknowledges each frame in
+     order, so replies lag the sends by window-1 frames. */
+  while (inflight >= g_opt.window) {
+    if (!handle_response()) return false;
+    inflight--;
   }
-
-  if (g_opt.input) input_update(resp.buttons, resp.analogX, resp.analogY);
-  VLOG("\r%6lu B  q%-3d btn %08x  ax %3u ay %3u   ", jsize, g_quality_cur, resp.buttons, resp.analogX, resp.analogY);
+  VLOG("\r%6lu B  q%-3d win%d ", jsize, g_quality_cur, g_opt.window);
   return true;
 }
 
@@ -205,6 +224,7 @@ static void loop(void)
 {
   long frame_us = 1000000L / (g_opt.fps > 0 ? g_opt.fps : 20);
   g_quality_cur = g_opt.quality;
+  inflight = 0;
 
   if (!prepare_next()) return;
   /* a first frame must always go out */
@@ -260,6 +280,8 @@ static void usage(const char *p)
    "Quality / speed:\n"
    "  -q 1..100         JPEG quality (default: 100; lower = faster)\n"
    "  -f N              max frames per second (default: 60; PSP caps at 60)\n"
+   "  --window N        frames in flight, 1-3 (default: 2 over Wi-Fi, 1 over USB). More keeps the\n"
+   "                    link busy during the PSP's acknowledge (higher fps) at +1 frame of input delay\n"
    "  --min-quality N   adaptive: drop quality as low as N to hold -f, raise it back up to -q\n"
    "\n"
    "Extras:\n"
@@ -323,6 +345,7 @@ int main(int argc, char **argv)
       return 0;
     }
     if (!strcmp(argv[a], "--no-display")) { g_opt.no_display = true; continue; }
+    if (!strcmp(argv[a], "--window") && a + 1 < argc) { g_opt.window = atoi(argv[++a]); continue; }
     if (!strcmp(argv[a], "--min-quality") && a + 1 < argc) { g_opt.min_quality = atoi(argv[++a]); continue; }
     if (!strcmp(argv[a], "--input-config") && a + 1 < argc) { g_opt.input_conf = argv[++a]; continue; }
     argv[w++] = argv[a];          /* keep everything else for getopt */
@@ -376,6 +399,8 @@ int main(int argc, char **argv)
     sigaction(SIGUSR1, &sa, NULL);
   }
 
+  if (g_opt.window < 1) g_opt.window = (g_opt.transport == TRANSPORT_TCP) ? 2 : 1;
+  if (g_opt.window > 3) g_opt.window = 3;
   tp  = (g_opt.transport == TRANSPORT_TCP) ? transport_tcp() : transport_usb();
   switch (g_opt.capture) {
     case CAPTURE_X11:    cap = capture_x11(); break;
